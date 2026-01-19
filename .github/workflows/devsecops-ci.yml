@@ -33,3 +33,14 @@ jobs:
         pip install pip-audit
         pip-audit || true
 
+    - name: Build Docker image
+      run: |
+        docker build -t todo-app:ci .
+
+    - name: Trivy Image Scan
+      uses: aquasecurity/trivy-action@0.20.0
+      with:
+        image-ref: todo-app:ci
+        severity: HIGH,CRITICAL
+        exit-code: 0
+
