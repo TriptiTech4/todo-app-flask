@@ -6,13 +6,10 @@ import os
 app = Flask(__name__)
 
 # Database connection info with environment variables
-db_connection = pymysql.connect(
-    host=os.environ.get('DB_HOST', 'localhost'),
-    user=os.environ.get('DB_USER', 'root'),
-    password=os.environ.get('DB_PASSWORD', 'password'),
-    database=os.environ.get('DB_DATABASE', 'todo_db'),
-    cursorclass=pymysql.cursors.DictCursor
-)
+import sqlite3
+
+db_connection = sqlite3.connect("todo.db", check_same_thread=False)
+
 
 
 # Pages Routes 
