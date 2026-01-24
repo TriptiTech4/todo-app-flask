@@ -1,69 +1,64 @@
 from flask import Flask, render_template, request, redirect, url_for
-import pymysql
-import os
-
+import sqlite3
 
 app = Flask(__name__)
 
-# Database connection info with environment variables
-import sqlite3
+# =========================
+# Database (SQLite for ECS)
+# =========================
+DB_PATH = "/app/todo.db"
 
-db_connection = sqlite3.connect("todo.db", check_same_thread=False)
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
+# Create table on startup
+conn = get_db()
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task TEXT NOT NULL
+)
+""")
+conn.commit()
+conn.close()
 
-
-# Pages Routes 
-@app.route('/')
+# =========================
+# Routes
+# =========================
+@app.route("/")
 def index():
-    cursor = db_connection.cursor()
+    conn = get_db()
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM tasks")
     tasks = cursor.fetchall()
-    return render_template('index.html', tasks=tasks)
+    conn.close()
+    return render_template("index.html", tasks=tasks)
 
-@app.route('/add', methods=['POST'])
+@app.route("/add", methods=["POST"])
 def add_task():
-    title = request.form.get('title')
-    description = request.form.get('description')
-    add_task_to_database(title, description)
-    return redirect(url_for('index'))
+    task = request.form.get("task")
+    if task:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO tasks (task) VALUES (?)", (task,))
+        conn.commit()
+        conn.close()
+    return redirect(url_for("index"))
 
-@app.route('/delete/<int:task_id>', methods=['POST'])
+@app.route("/delete/<int:task_id>")
 def delete_task(task_id):
-    try:
-        with db_connection.cursor() as cursor:
-            sql = "DELETE FROM tasks WHERE id = %s"
-            cursor.execute(sql, (task_id,))
-            db_connection.commit()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        db_connection.rollback()
-    return redirect(url_for('index'))
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("index"))
 
-@app.route('/complete/<int:task_id>', methods=['POST'])
-def complete_task(task_id):
-    try:
-        with db_connection.cursor() as cursor:
-            sql = "UPDATE tasks SET is_complete = TRUE WHERE id = %s"
-            cursor.execute(sql, (task_id,))
-            db_connection.commit()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        db_connection.rollback()
-    return redirect(url_for('index'))
-
-# Send data to the database 
-def add_task_to_database(title, description):
-    try:
-        with db_connection.cursor() as cursor:
-            # Create a new record
-            sql = "INSERT INTO tasks (title, description) VALUES (%s, %s)"
-            cursor.execute(sql, (title, description))
-
-        db_connection.commit()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        db_connection.rollback()
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
-
+# =========================
+# App start
+# =========================
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
